@@ -1,0 +1,68 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+#libraries
+
+library(BiocManager)
+library(ensembldb)
+library(rhdf5)
+library(tidyverse)
+library(tximport)
+BiocManager::install("TxDb.Dmelanogaster.UCSC.dm6.ensGene")
+library(TxDb.Dmelanogaster.UCSC.dm6.ensGene)
+library(GenomicFeatures)
+library(org.Dm.eg.db)
+library(AnnotationDbi)
+library(DESeq2)
+
+1.1a Creating a count table
+>targets <- read.csv("~/dronc sample experiment table.csv") #Imports the excel table with experiment design
+>path <- file.path("C:/Users/pmahe/Documents/RNASeq-DroncDronc_andDronc+_clean/results", targets$Sample, "abundance.h5") #Assigns the different file paths to the separate H5 files to the variable ‘path’
+>txdb <- TxDb.Dmelanogaster.UCSC.dm6.ensGene #File package that provides the annotation data for Drosophila Melanogaster and assigns it to the variable ‘txdb’
+>tx_info <- transcripts(txdb, columns = c("tx_name")) #Retrieves the specific information ‘tx_name’ form the package/
+>tx_info <-as_tibble(tx_info) #Transfroms “tx_info” into a table
+>tx_info <-dplyr::rename(tx_info, tx_id = tx_name) #Renames column ‘tx_name’ to ‘tx_id’
+>tx_info$tx_id <- as.character(tx_info$tx_id) #Transform the “tx_id” column data to character so it's easier to manipulate
+tx_info$gene_name <- mapIds(org.Dm.eg.db, keys=tx_info$tx_id, column="GENENAME", keytype="ENSEMBLTRANS", multiVals="first") #Retrieve and add the corresponding gene names to a column in ‘tx_info’ called gene_name
+
+#Add "GO" and "Ontology" column
+>tx_info$GO <- mapIds(
+  org.Dm.eg.db,
+  keys = tx_info$tx_id,
+  column = "GO",
+  keytype = "ENSEMBLTRANS",
+  multiVals = "first")
+
+>tx_info$Ontology <- mapIds(
+  org.Dm.eg.db,
+  keys = tx_info$tx_id,
+  column = "ONTOLOGY",
+  keytype = "ENSEMBLTRANS",
+  multiVals = "first")
+>Txi_transcript <- tximport(path, type = "kallisto", tx2gene = tx_info, txOut = TRUE, countsFromAbundance = "lengthScaledTPM", ignoreTxVersion = FALSE) 
+
+#Import the kallisto results
+>myCounts_transcripts <- Txi_transcript$counts #Retreive the count data from the results
+>samplelabel <- targets$Sample
+>colnames(myCounts_transcripts) <- c (samplelabel) #Assign the sample_ids to the column names
+>Count_table <- round(myCounts_transcripts) #Turn the data into integers
+
+#Set factor levels for table
+>targets$Group <-factor(targets$Group)
+#If needed to relevel  targets$Group <- relevel(targets$Group, ref = "")
+
+1.1b Create deseq object and import count data and sample info(targets) and set factor levels
+>dds <-DESeqDataSetFromMatrix(countData = Count_table, colData = targets, design = ~ Group)
+>dds$Group <- factor(dds$Group, levels = c("AExp", "BCon"))
+
+#Filter the transcripts
+>keep <-rowSums(counts(dds)) >=10
+>dds <-dds [keep,]
+
+#Perform the statistical tests to identify differentially expressed genes
+>dds <-DESeq(dds)
+>deseq_results_Group <- results(dds, contrast = c("Group", "AExp", "BCon"))
+deseq_results_Group <- as.data.frame(deseq_results_Group)
+
+#Adds a row with the corresponding gene names, GO and Ontology
+> deseq_results_Group <-  merge(deseq_results_Group, tx_info[, c("tx_id", "gene_name", "Ontology", "GO")], by.x = "row.names", by.y = "tx_id", all.x = TRUE) 
+
