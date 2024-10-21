@@ -1,0 +1,48 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+#libraries
+library(ggplot2)
+library(ggrepel)
+library(pheatmap)
+library(RColorBrewer)
+
+# Install and load the extrafont package 
+install.packages("extrafont") 
+library(extrafont) # Import the fonts available on your system 
+font_import() # Load the fonts into R loadfonts(device = "win") # Use "win" for Windows, "mac" for macOS, "pdf" for PDF device
+
+
+# PCA Plot
+>vsd <- vst(dds,blind=FALSE)
+#Use transformed values to generate PCA plot
+>plotPCA(vsd,intgroup=c("Condition"))
+>pcaData <- plotPCA(vsd, intgroup = c("Condition"), returnData = TRUE)
+> pcaData$Sample <- rownames(pcaData)
+>ggplot(pcaData, aes(x = PC1, y = PC2, color = Condition)) + geom_point(size = 3) + theme_bw() + scale_color_manual(values = c('grey', 'blue', 'black')) + theme(text = element_text(size = 12, family = "Times New Roman"))
+
+#Heatmap
+> library(pheatmap)
+> library(RColorBrewer)
+> sampledist <- dist(t(assay(vsd)))
+> sampledistmatrix<- as.matrix(sampledist)
+> colors <- colorRampPalette(rev(brewer.pal(9,  "Blues")))(255)
+> pheatmap(sampledistmatrix, clustering_distance_rows = sampledist, clustering_distance_cols = sampledist, col=colors)
+
+#Volcano plot 
+>label<- deseq_results_Group$gene_name #Add gene_name column to this table prior
+>deseq_results_Group$diffexpressed <- "Not significant"
+# If Log2Foldchange > 0 and pvalue < 0.05, set as "UP"
+>deseq_results_Group$diffexpressed[deseq_results_Group$log2FoldChange > 0 & >deseq_results_Group$padj < 0.05] <- "Upregulated"
+# If Log2Foldchange < 0 and pvalue < 0.05, set as "DOWN"
+>deseq_results_Group$diffexpressed[deseq_results_Group$log2FoldChange < 0 & >deseq_results_Group$pval < 0.05] <- "Downregulated"
+
+#Plot volcano
+>ggplot(data = deseq_results_Group, aes(x = log2FoldChange, y = -log10(padj), col = diffexpressed)) + geom_point() +
+     theme_minimal() +
+     scale_color_manual(values = c('orange', 'black', 'purple')) +
+     geom_vline(xintercept = 0, col = "gray", linetype = 'dashed') +
+     geom_hline(yintercept = -log10(0.05), col = "gray", linetype = 'dashed') 
+     theme(  axis.title.x = element_text(size = 12, family = "Times New Roman"),   
+             axis.title.y = element_text(size = 12, family = "Times New Roman"),
+       legend.title = element_blank(),   
+     legend.text = element_text(size = 10, family = "Times New Roman"))  
