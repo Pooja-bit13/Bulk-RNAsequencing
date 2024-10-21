@@ -1,0 +1,33 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+#Extract differentially expresses genes, adjpvalue <0.05 and Log2changevalue >0
+#Filter for Log2FoldChange >0 so only positive values are included in the filtered results
+>filteredresults <- deseq_results_Group %>% filter(deseq_results_Group$padj <0.05) 
+>filteredresults <-filteredresults %>% filter((filteredresults$log2FoldChange) >0)
+
+#Retreive top 100 transcription IDs and corresponding genes based on lof2FoldChange, biggest to lowest
+>L2FC_ordered_results <- filteredresults[order(filteredresults$log2FoldChange, decreasing = TRUE), ]
+#Extracts top 100 rows
+>filtered_tophits_all_Grouped_l2fc <- L2FC_ordered_results[1:100, ] 
+#Rename the first column ‘tx_id’.
+>colnames(filtered_tophits_all_Grouped_l2fc)[1] <- "tx_id" 
+
+#Retreive top 100 transcription IDs and corresponding genes based on padj value, smallest to biggest
+>padj_ordered_results <- filteredresults[order(filteredresults$padj), ]
+#Extracts top 100 rows
+>filtered_tophits_all_Grouped_padj <- padj_ordered_results[1:100, ] 
+
+#Retreiving the top 10 GO 
+> go_table <- data.frame(filteredresults$GO)
+>go_table_clean <- go_table %>%filter(!is.na(filteredresults.GO))
+# Split the GO_IDs column into individual entries and unnest them
+> go_table_split <- go_table_clean %>%
+     separate_rows(filteredresults.GO, sep = ",") %>%
+     group_by(filteredresults.GO) %>%
+     summarise(Frequency = n()) %>%
+     arrange(desc(Frequency))
+ # Get the top 10 GO IDs
+> top_10_GO_IDs <- head(go_table_split, 10)
+> print(top_10_GO_IDs)
+
